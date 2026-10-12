@@ -12,7 +12,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author 微信公众号:苏渡苇 GitHub: https://github.com/iweidujiang
  * @since 2026-10-09
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "io.github.iweidujiang.testbed",
+        "io.github.iweidujiang.promptab.server"
+})
 public class TestBedApplication {
 
     public static void main(String[] args) {

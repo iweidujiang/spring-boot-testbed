@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验管理 - TestBed</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div th:replace="~{fragments/layout :: navbar(activeMenu='experiments')}"></div>
+
+<div class="container">
+    <h2 class="mb-4">实验管理</h2>
+
+    <!-- 创建实验表单 -->
+    <div class="card mb-4">
+        <div class="card-header">创建实验</div>
+        <div class="card-body">
+            <form id="createForm" class="row g-3">
+                <div class="col-md-4">
+                    <label for="newKey" class="form-label">实验标识</label>
+                    <input type="text" class="form-control" id="newKey" placeholder="如: chat-prompt-v2" required maxlength="128">
+                </div>
+                <div class="col-md-5">
+                    <label for="newDesc" class="form-label">描述</label>
+                    <input type="text" class="form-control" id="newDesc" placeholder="实验描述" maxlength="512">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 状态筛选 -->
+    <div class="mb-3">
+        <span class="me-2">筛选：</span>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn active" data-status="">全部</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="DRAFT">DRAFT</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="ACTIVE">ACTIVE</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="PAUSED">PAUSED</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="ARCHIVED">ARCHIVED</button>
+        </div>
+    </div>
+
+    <!-- 实验列表 -->
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>实验标识</th>
+                <th>描述</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="experimentTable">
+            <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="toast" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;"></div>
+</div>
+
+<div th:replace="~{fragments/layout :: footer}"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API = '/api/experiments';
+    let currentFilter = '';
+
+    // 状态徽章颜色
+    function statusBadge(status) {
+        const colors = {DRAFT: 'secondary', ACTIVE: 'success', PAUSED: 'warning', ARCHIVED: 'dark'};
+        return `<span class="badge bg-${colors[status] || 'secondary'}">${status}</span>`;
+    }
+
+    // 状态流转按钮
+    function statusActions(exp) {
+        const transitions = {
+            DRAFT: [{target: 'ACTIVE', label: '激活', cls: 'btn-success'}],
+            ACTIVE: [{target: 'PAUSED', label: '暂停', cls: 'btn-warning'}],
+            PAUSED: [
+                {target: 'ACTIVE', label: '恢复', cls: 'btn-success'},
+                {target: 'ARCHIVED', label: '归档', cls: 'btn-dark'}
+            ]
+        };
+        const btns = transitions[exp.status] || [];
+        return btns.map(b =>
+            `<button class="btn btn-sm ${b.cls} me-1" onclick="changeStatus('${exp.experimentKey}','${b.target}')">${b.label}</button>`
+        ).join('');
+    }
+
+    // 加载实验列表
+    async function loadExperiments() {
+        const url = currentFilter ? `${API}?status=${currentFilter}` : API;
+        const res = await fetch(url);
+        const data = await res.json();
+        const tbody = document.getElementById('experimentTable');
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map(exp => `
+            <tr>
+                <td>${exp.id}</td>
+                <td><code>${exp.experimentKey}</code></td>
+                <td>${exp.description || '-'}</td>
+                <td>${statusBadge(exp.status)}</td>
+                <td><small>${formatTime(exp.createdAt)}</small></td>
+                <td>${statusActions(exp)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function formatTime(t) {
+        if (!t) return '-';
+        return t.replace('T', ' ').substring(0, 19);
+    }
+
+    // 创建实验
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const key = document.getElementById('newKey').value.trim();
+        const desc = document.getElementById('newDesc').value.trim();
+        if (!key) return;
+
+        try {
+            const res = await fetch(API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({experimentKey: key, description: desc})
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                showToast(data.message || '创建失败', 'danger');
+                return;
+            }
+            showToast(`实验 "${data.experimentKey}" 创建成功`, 'success');
+            document.getElementById('createForm').reset();
+            loadExperiments();
+        } catch (err) {
+            showToast('请求失败: ' + err.message, 'danger');
+        }
+    });
+
+    // 变更状态
+    async function changeStatus(key, targetStatus) {
+        try {
+            const res = await fetch(`${API}/${key}/status`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status: targetStatus})
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                showToast(data.message || '状态变更失败', 'danger');
+                return;
+            }
+            showToast(`实验 "${key}" → ${targetStatus}`, 'success');
+            loadExperiments();
+        } catch (err) {
+            showToast('请求失败: ' + err.message, 'danger');
+        }
+    }
+
+    // 筛选按钮
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentFilter = this.dataset.status;
+            loadExperiments();
+        });
+    });
+
+    // Toast 提示
+    function showToast(msg, type) {
+        const container = document.getElementById('toast');
+        const id = 'toast-' + Date.now();
+        const colors = {success: 'success', danger: 'danger', warning: 'warning'};
+        container.insertAdjacentHTML('beforeend', `
+            <div id="${id}" class="toast align-items-center text-bg-${colors[type] || 'secondary'} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${msg}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `);
+        const el = document.getElementById(id);
+        const toast = new bootstrap.Toast(el, {delay: 3000});
+        toast.show();
+        el.addEventListener('hidden.bs.toast', () => el.remove());
+    }
+
+    // 初始加载
+    loadExperiments();
+</script>
+</body>
+</html>
