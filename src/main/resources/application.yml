@@ -1,0 +1,54 @@
+# 应用配置
+server:
+  port: 8080
+
+spring:
+  application:
+    name: spring-boot-testbed
+
+  # H2 内存数据库
+  datasource:
+    url: jdbc:h2:mem:testbed;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # H2 控制台（开发调试用）
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # Flyway 迁移
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# Prompt AB 配置
+prompt-ab:
+  enabled: true
+  default-experiment-key: demo-exp
+
+# Spring AI（Mock 模式下无需配置真实 API 密钥）
+# 如需使用真实 OpenAI，取消注释并填入密钥：
+# spring:
+#   ai:
+#     openai:
+#       api-key: ${OPENAI_API_KEY}
+#       chat:
+#         options:
+#           model: gpt-4o-mini
+
+# Actuator 端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+# 日志
+logging:
+  level:
+    io.github.iweidujiang.promptab: DEBUG
+    org.springframework.ai: INFO
