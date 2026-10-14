@@ -5,204 +5,301 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>实验管理 - TestBed</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .test-card { border-left: 4px solid #6c757d; }
+        .test-card.pass { border-left-color: #198754; }
+        .test-card.fail { border-left-color: #dc3545; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center;
+                     width: 22px; height: 22px; border-radius: 50%; background: #e9ecef;
+                     font-size: 0.75rem; font-weight: 700; margin-right: 6px; flex-shrink: 0; }
+        .expected { background: #f0fff4; border-left: 3px solid #198754; }
+        .actual-pass { color: #198754; font-weight: 600; }
+        .actual-fail { color: #dc3545; font-weight: 600; }
+    </style>
 </head>
-<body>
+<body class="bg-light">
 
-<div th:replace="~{fragments/layout :: navbar(activeMenu='experiments')}"></div>
+<div class="container py-4">
+    <div th:replace="~{fragments/layout :: breadcrumb(items=${breadcrumb})}"></div>
 
-<div class="container">
-    <h2 class="mb-4">实验管理</h2>
+    <h2 class="mb-2">实验管理</h2>
+    <p class="text-muted mb-4">验证实验的创建、状态流转及非法操作拦截</p>
 
-    <!-- 创建实验表单 -->
-    <div class="card mb-4">
-        <div class="card-header">创建实验</div>
-        <div class="card-body">
-            <form id="createForm" class="row g-3">
-                <div class="col-md-4">
-                    <label for="newKey" class="form-label">实验标识</label>
-                    <input type="text" class="form-control" id="newKey" placeholder="如: chat-prompt-v2" required maxlength="128">
+    <div id="testCases">
+
+        <!-- 用例 1：创建实验 -->
+        <div class="card test-card mb-3" id="case-create">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">用例 1：创建实验</h5>
+                        <small class="text-muted">验证 POST /api/experiments 能成功创建实验并返回正确结构</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary run-btn" onclick="runCreate()">执行</button>
                 </div>
-                <div class="col-md-5">
-                    <label for="newDesc" class="form-label">描述</label>
-                    <input type="text" class="form-control" id="newDesc" placeholder="实验描述" maxlength="512">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">操作步骤</h6>
+                        <ol class="mb-0 ps-3 small">
+                            <li>发送 POST 请求到 <code>/api/experiments</code></li>
+                            <li>请求体：<code>{"experimentKey":"test-create","description":"创建测试"}</code></li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">预期结果</h6>
+                        <div class="expected rounded p-2 small">
+                            <div>HTTP 状态码：<strong>201 Created</strong></div>
+                            <div>返回 JSON 包含 <code>experimentKey = "test-create"</code></div>
+                            <div>返回 JSON 包含 <code>status = "DRAFT"</code></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">创建</button>
+                <div class="result-area mt-3 d-none">
+                    <hr>
+                    <div class="result-content small"></div>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
 
-    <!-- 状态筛选 -->
-    <div class="mb-3">
-        <span class="me-2">筛选：</span>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn active" data-status="">全部</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="DRAFT">DRAFT</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="ACTIVE">ACTIVE</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="PAUSED">PAUSED</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm filter-btn" data-status="ARCHIVED">ARCHIVED</button>
+        <!-- 用例 2：查询实验列表 -->
+        <div class="card test-card mb-3" id="case-list">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">用例 2：查询实验列表</h5>
+                        <small class="text-muted">验证 GET /api/experiments 返回所有实验</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary run-btn" onclick="runList()">执行</button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">操作步骤</h6>
+                        <ol class="mb-0 ps-3 small">
+                            <li>发送 GET 请求到 <code>/api/experiments</code></li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">预期结果</h6>
+                        <div class="expected rounded p-2 small">
+                            <div>HTTP 状态码：<strong>200 OK</strong></div>
+                            <div>返回 JSON 数组，长度 <strong>&ge; 1</strong>（含预置 demo-exp）</div>
+                            <div>每个元素包含 <code>id</code>、<code>experimentKey</code>、<code>status</code></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-area mt-3 d-none">
+                    <hr>
+                    <div class="result-content small"></div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- 实验列表 -->
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-light">
-            <tr>
-                <th>ID</th>
-                <th>实验标识</th>
-                <th>描述</th>
-                <th>状态</th>
-                <th>创建时间</th>
-                <th>操作</th>
-            </tr>
-            </thead>
-            <tbody id="experimentTable">
-            <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
-            </tbody>
-        </table>
-    </div>
+        <!-- 用例 3：状态流转 -->
+        <div class="card test-card mb-3" id="case-transition">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">用例 3：状态流转（DRAFT → ACTIVE → PAUSED → ARCHIVED）</h5>
+                        <small class="text-muted">验证实验状态按正确顺序流转</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary run-btn" onclick="runTransition()">执行</button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">操作步骤</h6>
+                        <ol class="mb-0 ps-3 small">
+                            <li>创建实验 <code>test-flow</code>（初始 DRAFT）</li>
+                            <li>PATCH <code>/api/experiments/test-flow/status</code> → ACTIVE</li>
+                            <li>PATCH → PAUSED</li>
+                            <li>PATCH → ARCHIVED</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">预期结果</h6>
+                        <div class="expected rounded p-2 small">
+                            <div>每步返回 <strong>200 OK</strong></div>
+                            <div>最终 <code>status = "ARCHIVED"</code></div>
+                            <div>流转路径：DRAFT → ACTIVE → PAUSED → ARCHIVED</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-area mt-3 d-none">
+                    <hr>
+                    <div class="result-content small"></div>
+                </div>
+            </div>
+        </div>
 
-    <!-- 消息提示 -->
-    <div id="toast" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;"></div>
+        <!-- 用例 4：非法状态流转 -->
+        <div class="card test-card mb-3" id="case-illegal">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">用例 4：非法状态流转被拒绝</h5>
+                        <small class="text-muted">验证 ARCHIVED → ACTIVE 等非法操作返回错误</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary run-btn" onclick="runIllegal()">执行</button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">操作步骤</h6>
+                        <ol class="mb-0 ps-3 small">
+                            <li>创建实验 <code>test-illegal</code> 并流转到 ARCHIVED</li>
+                            <li>PATCH <code>/api/experiments/test-illegal/status</code> → ACTIVE</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">预期结果</h6>
+                        <div class="expected rounded p-2 small">
+                            <div>HTTP 状态码：<strong>400 Bad Request</strong></div>
+                            <div>返回 JSON 包含 <code>message</code> 字段，描述非法流转原因</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-area mt-3 d-none">
+                    <hr>
+                    <div class="result-content small"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用例 5：重复标识拒绝 -->
+        <div class="card test-card mb-3" id="case-duplicate">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="mb-1">用例 5：重复实验标识被拒绝</h5>
+                        <small class="text-muted">验证 experimentKey 唯一性约束</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary run-btn" onclick="runDuplicate()">执行</button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">操作步骤</h6>
+                        <ol class="mb-0 ps-3 small">
+                            <li>创建实验 <code>test-dup</code></li>
+                            <li>再次创建实验 <code>test-dup</code>（相同 key）</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold">预期结果</h6>
+                        <div class="expected rounded p-2 small">
+                            <div>第一次：HTTP <strong>201 Created</strong></div>
+                            <div>第二次：HTTP <strong>400 Bad Request</strong></div>
+                            <div>返回 <code>message</code> 提示重复</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-area mt-3 d-none">
+                    <hr>
+                    <div class="result-content small"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <div th:replace="~{fragments/layout :: footer}"></div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const API = '/api/experiments';
-    let currentFilter = '';
 
-    // 状态徽章颜色
-    function statusBadge(status) {
-        const colors = {DRAFT: 'secondary', ACTIVE: 'success', PAUSED: 'warning', ARCHIVED: 'dark'};
-        return `<span class="badge bg-${colors[status] || 'secondary'}">${status}</span>`;
+    function showResult(cardId, passed, detail) {
+        const card = document.getElementById(cardId);
+        const area = card.querySelector('.result-area');
+        const content = card.querySelector('.result-content');
+        area.classList.remove('d-none');
+        card.classList.remove('pass', 'fail');
+        card.classList.add(passed ? 'pass' : 'fail');
+        content.innerHTML = (passed
+            ? '<span class="actual-pass">✅ 通过</span>'
+            : '<span class="actual-fail">❌ 失败</span>') + ' — ' + detail;
     }
 
-    // 状态流转按钮
-    function statusActions(exp) {
-        const transitions = {
-            DRAFT: [{target: 'ACTIVE', label: '激活', cls: 'btn-success'}],
-            ACTIVE: [{target: 'PAUSED', label: '暂停', cls: 'btn-warning'}],
-            PAUSED: [
-                {target: 'ACTIVE', label: '恢复', cls: 'btn-success'},
-                {target: 'ARCHIVED', label: '归档', cls: 'btn-dark'}
-            ]
-        };
-        const btns = transitions[exp.status] || [];
-        return btns.map(b =>
-            `<button class="btn btn-sm ${b.cls} me-1" onclick="changeStatus('${exp.experimentKey}','${b.target}')">${b.label}</button>`
-        ).join('');
-    }
-
-    // 加载实验列表
-    async function loadExperiments() {
-        const url = currentFilter ? `${API}?status=${currentFilter}` : API;
-        const res = await fetch(url);
-        const data = await res.json();
-        const tbody = document.getElementById('experimentTable');
-
-        if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = data.map(exp => `
-            <tr>
-                <td>${exp.id}</td>
-                <td><code>${exp.experimentKey}</code></td>
-                <td>${exp.description || '-'}</td>
-                <td>${statusBadge(exp.status)}</td>
-                <td><small>${formatTime(exp.createdAt)}</small></td>
-                <td>${statusActions(exp)}</td>
-            </tr>
-        `).join('');
-    }
-
-    function formatTime(t) {
-        if (!t) return '-';
-        return t.replace('T', ' ').substring(0, 19);
-    }
-
-    // 创建实验
-    document.getElementById('createForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const key = document.getElementById('newKey').value.trim();
-        const desc = document.getElementById('newDesc').value.trim();
-        if (!key) return;
-
+    async function runCreate() {
         try {
             const res = await fetch(API, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({experimentKey: key, description: desc})
+                body: JSON.stringify({experimentKey: 'test-create', description: '创建测试'})
             });
             const data = await res.json();
-            if (!res.ok) {
-                showToast(data.message || '创建失败', 'danger');
-                return;
-            }
-            showToast(`实验 "${data.experimentKey}" 创建成功`, 'success');
-            document.getElementById('createForm').reset();
-            loadExperiments();
-        } catch (err) {
-            showToast('请求失败: ' + err.message, 'danger');
-        }
-    });
+            const ok = res.status === 201 && data.experimentKey === 'test-create' && data.status === 'DRAFT';
+            showResult('case-create', ok,
+                `HTTP ${res.status} | experimentKey=${data.experimentKey || '?'} | status=${data.status || '?'}`);
+        } catch (e) { showResult('case-create', false, e.message); }
+    }
 
-    // 变更状态
-    async function changeStatus(key, targetStatus) {
+    async function runList() {
         try {
-            const res = await fetch(`${API}/${key}/status`, {
-                method: 'PATCH',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: targetStatus})
+            const res = await fetch(API);
+            const data = await res.json();
+            const ok = res.status === 200 && Array.isArray(data) && data.length >= 1
+                       && data[0].experimentKey && data[0].status;
+            showResult('case-list', ok,
+                `HTTP ${res.status} | 返回 ${data.length} 条 | 首条 key=${data[0]?.experimentKey || '?'}`);
+        } catch (e) { showResult('case-list', false, e.message); }
+    }
+
+    async function runTransition() {
+        try {
+            // 创建
+            await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({experimentKey:'test-flow', description:'流转测试'})});
+            // 逐步流转
+            const steps = ['ACTIVE','PAUSED','ARCHIVED'];
+            let lastStatus = 'DRAFT';
+            let allOk = true;
+            let detail = '';
+            for (const s of steps) {
+                const res = await fetch(`${API}/test-flow/status`, {
+                    method:'PATCH', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({status: s})
+                });
+                const data = await res.json();
+                if (res.status !== 200 || data.status !== s) { allOk = false; }
+                detail += `${lastStatus}→${s}: ${res.status} `;
+                lastStatus = s;
+            }
+            showResult('case-transition', allOk, detail.trim());
+        } catch (e) { showResult('case-transition', false, e.message); }
+    }
+
+    async function runIllegal() {
+        try {
+            await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({experimentKey:'test-illegal', description:'非法流转测试'})});
+            const steps = ['ACTIVE','PAUSED','ARCHIVED'];
+            for (const s of steps) {
+                await fetch(`${API}/test-illegal/status`, {
+                    method:'PATCH', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({status: s})
+                });
+            }
+            const res = await fetch(`${API}/test-illegal/status`, {
+                method:'PATCH', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({status: 'ACTIVE'})
             });
             const data = await res.json();
-            if (!res.ok) {
-                showToast(data.message || '状态变更失败', 'danger');
-                return;
-            }
-            showToast(`实验 "${key}" → ${targetStatus}`, 'success');
-            loadExperiments();
-        } catch (err) {
-            showToast('请求失败: ' + err.message, 'danger');
-        }
+            const ok = res.status === 400 && data.message;
+            showResult('case-illegal', ok,
+                `HTTP ${res.status} | message=${data.message || '?'}`);
+        } catch (e) { showResult('case-illegal', false, e.message); }
     }
 
-    // 筛选按钮
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            currentFilter = this.dataset.status;
-            loadExperiments();
-        });
-    });
-
-    // Toast 提示
-    function showToast(msg, type) {
-        const container = document.getElementById('toast');
-        const id = 'toast-' + Date.now();
-        const colors = {success: 'success', danger: 'danger', warning: 'warning'};
-        container.insertAdjacentHTML('beforeend', `
-            <div id="${id}" class="toast align-items-center text-bg-${colors[type] || 'secondary'} border-0" role="alert">
-                <div class="d-flex">
-                    <div class="toast-body">${msg}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `);
-        const el = document.getElementById(id);
-        const toast = new bootstrap.Toast(el, {delay: 3000});
-        toast.show();
-        el.addEventListener('hidden.bs.toast', () => el.remove());
+    async function runDuplicate() {
+        try {
+            const r1 = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({experimentKey:'test-dup', description:'重复测试'})});
+            const r2 = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({experimentKey:'test-dup', description:'重复测试'})});
+            const d2 = await r2.json();
+            const ok = r1.status === 201 && r2.status === 400 && d2.message;
+            showResult('case-duplicate', ok,
+                `第一次 HTTP ${r1.status} | 第二次 HTTP ${r2.status} | message=${d2.message || '?'}`);
+        } catch (e) { showResult('case-duplicate', false, e.message); }
     }
-
-    // 初始加载
-    loadExperiments();
 </script>
 </body>
 </html>
